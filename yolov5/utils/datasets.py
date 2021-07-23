@@ -345,18 +345,20 @@ class LoadStreams:  # multiple IP or RTSP cameras
                 # _, self.imgs[index] = cap.read()
                 if n % read == 0:
                     rawImage = self.client.simGetImage("0", self.cameraTypeMap[self.cameraType])
-                    im = cv2.imdecode(airsim.string_to_uint8_array(rawImage), cv2.IMREAD_UNCHANGED)
-                    self.imgs[i] = im[:,:,:3]
+                    try:
+                        im = cv2.imdecode(airsim.string_to_uint8_array(rawImage), cv2.IMREAD_UNCHANGED)
+                        self.imgs[i] = im[:, :, :3]
+                    except:
+                        pass
 
                     ##########################################################
                     # TODO
                     #  여기에 Drone control하는공간으로 사용하면된다.
                     #  원래는 thread코딩하려고했는데 client.simGetImage가 여기에서 사용되어서
                     #  다른 thread에서 client호출이 안됨 그래서 그냥 여기에 drone contol전부하는중
-                    camera_center = (self.w/2, self.h/2)
-                    self.client.adjust_gimbal_angle(camera_center)
-                    self.client.adjust_target_gps(frame = (self.w,self.h))
 
+                    self.client.adjust_gimbal_angle()
+                    self.client.adjust_target_gps()
 
                 time.sleep(1 / self.fps[i])  # wait time
         else:

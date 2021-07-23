@@ -7,8 +7,8 @@ from threading import Thread
 # connect to the AirSim simulator
 client = airsim.MultirotorClient()
 client.confirmConnection()
-client.enableApiControl(True)
-client.armDisarm(True)
+# client.enableApiControl(True)
+# client.armDisarm(True)
 w_val= client.simGetCameraInfo("0").pose.orientation.w_val
 x_val= client.simGetCameraInfo("0").pose.orientation.x_val
 y_val= client.simGetCameraInfo("0").pose.orientation.y_val
@@ -16,7 +16,7 @@ z_val= client.simGetCameraInfo("0").pose.orientation.z_val
 
 euler = euler_from_quaternion(x_val, y_val, z_val, w_val)
 
-print(w_val, x_val, y_val, z_val)
+#print(w_val, x_val, y_val, z_val)
 print(euler)
 
 

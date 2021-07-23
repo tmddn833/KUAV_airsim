@@ -88,6 +88,7 @@ def plot_one_box2(x, im, color=(128, 128, 128), label=None, line_thickness=3):
     c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
     cv2.rectangle(im, c1, c2, color, thickness=tl, lineType=cv2.LINE_AA)
     center = (int((c1[0]+c2[0])/2), int((c1[1]+c2[1])/2))
+    foot = (int(center[0]), int(c2[1]))
     cv2.circle(im, center, 1, color, thickness =tl)
     if label:
         tf = max(tl - 1, 1)  # font thickness
@@ -97,7 +98,7 @@ def plot_one_box2(x, im, color=(128, 128, 128), label=None, line_thickness=3):
         cv2.putText(im, label, (c1[0], c1[1] - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
         # putText(img, text, org, fontFace, fontScale, color[, thickness[, lineType[, bottomLeftOrigin]]])
         cv2.putText(im, str(center), (center[0], center[1] - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
-    return center
+    return center, foot
 
 
 def plot_one_box_PIL(box, im, color=(128, 128, 128), label=None, line_thickness=None):

@@ -6,6 +6,7 @@
 # pip install opencv-python
 
 import time
+import math
 import sys
 import argparse
 from pathlib import Path
@@ -29,8 +30,10 @@ from utils.augmentations import letterbox
 from detect_crop import parse_opt
 from drone_control import MyMultirotorClient
 
+
 def printUsage():
     print("Usage: python camera.py [depth|segmentation|scene]")
+
 
 cameraType = "scene"
 
@@ -43,6 +46,7 @@ cameraTypeMap = {
     "normals": airsim.ImageType.SurfaceNormals
 }
 print(cameraTypeMap[cameraType])
+
 
 @torch.no_grad()
 def run(weights='yolov5s.pt',  # model.pt path(s)
@@ -68,7 +72,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
         hide_labels=False,  # hide labels
         hide_conf=False,  # hide confidences
         half=False,  # use FP16 half-precision inference
-        client = None  # if it is airsim, use client for source
+        client=None  # if it is airsim, use client for source
         ):
     save_img = not nosave and not source.endswith('.txt')  # save inference images
     webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
@@ -77,6 +81,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
     # Directories
     save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
     (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+    client.save_dir = save_dir
 
     # Initialize
     set_logging()
@@ -101,7 +106,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
     if webcam:
         view_img = check_imshow()
         cudnn.benchmark = True  # set True to speed up constant image size inference
-        dataset = LoadStreams(source, img_size=imgsz, stride=stride, client = client, cameraType = cameraType)
+        dataset = LoadStreams(source, img_size=imgsz, stride=stride, client=client, cameraType=cameraType)
         bs = len(dataset)  # batch_size
     else:
         dataset = LoadImages(source, img_size=imgsz, stride=stride)
@@ -118,10 +123,11 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
     crop_detect = False  # if the model do detect in crop image
     total_detect = False  # if the model do detect in original image
     n = 0  # the number of detect iteration
-    client.img_human_center = (int(dataset.imgs[0].shape[1]/2), int(dataset.imgs[0].shape[0]/2))
+    client.img_human_center = (int(dataset.imgs[0].shape[1] / 2), int(dataset.imgs[0].shape[0] / 2))
+    client.img_human_foot = client.img_human_center
 
     for path, img, im0s, vid_cap in dataset:
-        #print(img.shape) # (1, 3, 480, 640)
+        # print(img.shape) # (1, 3, 480, 640)
         # print(im0s[0].shape) # (480, 640, 3)
         img = torch.from_numpy(img).to(device)
         img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -163,7 +169,8 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
         # Apply NMS
         pred = non_max_suppression(pred_raw, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
         if not total_detect or n == 0:  # crop condition
-            pred_crop = non_max_suppression(pred_raw_crop, conf_thres/3, iou_thres, classes, agnostic_nms, max_det=max_det)
+            pred_crop = non_max_suppression(pred_raw_crop, conf_thres / 3, iou_thres, classes, agnostic_nms,
+                                            max_det=max_det)
 
         t2 = time_synchronized()
 
@@ -202,17 +209,19 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                         if view_img:  # Add bbox to image
                             c = int(cls)  # integer class
                             label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                            center = plot_one_box2(xyxy, im0_crop, label=label, color=colors(c, True),
-                                                   line_thickness=1)
+                            center, foot = plot_one_box2(xyxy, im0_crop, label=label, color=colors(c, True),
+                                                         line_thickness=1)
                             if c == 0:
                                 # print(center, lowerbound_x, lowerbound_y, im0.shape, im0_crop.shape)
                                 # (132, 106) 540 380 (960, 1280, 3) (200, 200, 3) -> the ratio always same, just add
-                                center = (lowerbound_x + center[0], lowerbound_y+ center[1])
+                                center = (lowerbound_x + center[0], lowerbound_y + center[1])
+                                foot = (lowerbound_x + foot[0], lowerbound_y + foot[1])
                                 client.img_human_center = center
+                                client.img_human_foot = foot
                                 client.human_detect = True
                                 crop_detect = True
                             if save_crop:
-                                save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg',BGR=True)
+                                save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
                 # Write results
                 total_detect = False
@@ -227,40 +236,48 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                         if save_img or save_crop or view_img:  # Add bbox to image
                             c = int(cls)  # integer class
                             label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                            center = plot_one_box2(xyxy, im0, label=label, color=colors(c, True), line_thickness=1)
+                            center, foot = plot_one_box2(xyxy, im0, label=label, color=colors(c, True),
+                                                         line_thickness=1)
                             if c == 0:
                                 client.img_human_center = center
+                                client.img_human_foot = foot
                                 client.human_detect = True
                                 total_detect = True
                             if save_crop:
                                 save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
-
                 # Print time (inference + NMS)
             print(f'{s}Done. ({t2 - t1:.3f}s)')
 
-
             # Stream results
+            fontFace = cv2.FONT_HERSHEY_SIMPLEX
+            fontScale = 0.5
+            thickness = 2
+            textSize, baseline = cv2.getTextSize("FPS", fontFace, fontScale, thickness)
+
             if view_img:
                 if crop_detect:
                     # cv2.imshow("Crop", im0_crop)
-                    im0[im0.shape[0]-im0_crop.shape[0]:im0.shape[0],0:im0_crop.shape[1], :] = im0_crop
-                #print((human_center[0], im0.shape[0] / 2), (im0.shape[1] / 2, im0.shape[0] / 2))
+                    # qim0[im0.shape[0]-im0_crop.shape[0]:im0.shape[0],0:im0_crop.shape[1], :] = im0_crop
+                    im0[lowerbound_y:higherbound_y, lowerbound_x:higherbound_x] = im0_crop
+                    cv2.putText(im0, 'Crop', (lowerbound_x, lowerbound_y + textSize[1]), fontFace,
+                                fontScale,
+                                (255, 0, 255), thickness)
+                # print((human_center[0], im0.shape[0] / 2), (im0.shape[1] / 2, im0.shape[0] / 2))
                 cv2.line(im0,
-                         (int(client.g_dx + im0.shape[1] / 2), int(im0.shape[0] / 2)),
-                         (int(im0.shape[1] / 2), int(im0.shape[0] / 2)), (0, 0, 255), thickness=1, lineType=cv2.LINE_AA)
+                         (int(client.img_dx + im0.shape[1] / 2), int(im0.shape[0] / 2)),
+                         (int(im0.shape[1] / 2), int(im0.shape[0] / 2)), (0, 0, 255),
+                         thickness=1, lineType=cv2.LINE_AA)
                 cv2.line(im0,
-                         (int(im0.shape[1] / 2), int(client.g_dy + im0.shape[0] / 2)),
-                         (int(im0.shape[1] / 2), int(im0.shape[0] / 2)), (0, 0, 255), thickness=1, lineType=cv2.LINE_AA)
-                fontFace = cv2.FONT_HERSHEY_SIMPLEX
-                fontScale = 0.5
-                thickness = 2
-                textOrg = (10, 10 + textSize[1])
-                cv2.putText(im0, 'Human Detection ' + str(client.human_detect), (10, 10 + textSize[1]), fontFace, fontScale,
+                         (int(im0.shape[1] / 2), int(client.img_dy + im0.shape[0] / 2)),
+                         (int(im0.shape[1] / 2), int(im0.shape[0] / 2)), (0, 0, 255),
+                         thickness=1, lineType=cv2.LINE_AA)
+                cv2.putText(im0, 'Human Detection ' + str(client.human_detect), (10, 10 + textSize[1]), fontFace,
+                            fontScale,
                             (255, 0, 255), thickness)
-                cv2.putText(im0, 'Crop Detection ' + str(crop_detect), (10, 20 + textSize[1]), fontFace, fontScale,
+                cv2.putText(im0, 'Crop Detection ' + str(crop_detect), (10, 25 + textSize[1]), fontFace, fontScale,
                             (255, 0, 255), thickness)
-                cv2.putText(im0, ' Total Detection ' + str(total_detect), (10, 30 + textSize[1]), fontFace, fontScale,
+                cv2.putText(im0, ' Total Detection ' + str(total_detect), (10, 40 + textSize[1]), fontFace, fontScale,
                             (255, 0, 255), thickness)
                 cv2.imshow(str(p), im0)
                 # cv2.waitKey(1)  # 1 millisecond
@@ -290,12 +307,11 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
             # adjust_target_gps()
             # adjust_gimbal_angle(client, human_center=human_center, camera_center=(im0.shape[1] / 2, im0.shape[0] / 2))
 
-        try:
-            print(client.img_human_center)
-        except:
-            pass
+        # try:
+        #     print(client.img_human_center)
+        # except:
+        #     pass
         n += 1  # count up the iteration
-
 
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
@@ -315,25 +331,22 @@ def main(opt):
 
 if __name__ == "__main__":
     opt = parse_opt()
-
-    client = MyMultirotorClient()
+    # here is initial settings for simulation
+    client = MyMultirotorClient(default_gimbal_pitch=-math.pi / 4,  # how much drone will look down at spawn
+                                xdFoV=63 / 180 * math.pi,
+                                hovering_altitude=-30,  # meter
+                                velocity_gain=0.3,  #
+                                track_target=True  #
+                                )
     client.armDisarm(True)
-
-    # client.takeoffAsync(timeout_sec='5').join()
-    z = -30  # meter
-    client.moveToPositionAsync(client.start.x_val, client.start.y_val, z, 5).join()
-
-    help = False
-
-    fontFace = cv2.FONT_HERSHEY_SIMPLEX
-    fontScale = 0.5
-    thickness = 2
-    textSize, baseline = cv2.getTextSize("FPS", fontFace, fontScale, thickness)
-    textOrg = (10, 10 + textSize[1])
-    frameCount = 0
-    startTime = time.clock()
-
-    fps = 0
     print(colorstr('detect: ') + ', '.join(f'{k}={v}' for k, v in vars(opt).items()))
+
+    # Go to initial location
+    # client.takeoffAsync(timeout_sec='5').join()
+    client.moveToPositionAsync(client.start.x_val, client.start.y_val, client.hovering_altitude, 5).join()
+    client.mission_start((10,-20), coordinate='XYZ')
+
+    # Trace the target human
     check_requirements(exclude=('tensorboard', 'thop'))
-    run(**vars(opt), client = client)
+    run(**vars(opt), client=client)
+

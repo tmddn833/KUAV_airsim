@@ -45,7 +45,6 @@ fontFace = cv2.FONT_HERSHEY_SIMPLEX
 fontScale = 0.5
 thickness = 2
 textSize, baseline = cv2.getTextSize("FPS", fontFace, fontScale, thickness)
-print(textSize)
 textOrg = (10, 10 + textSize[1])
 frameCount = 0
 startTime=time.clock()
@@ -61,6 +60,7 @@ while True:
             sys.exit(0)
         else:
             png = cv2.imdecode(airsim.string_to_uint8_array(rawImage), cv2.IMREAD_UNCHANGED)
+
             # png_copy1 = png.copy()
             # png_copy1[:,:,0] = 0
             # png_copy2 = png.copy()
