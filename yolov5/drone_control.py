@@ -79,6 +79,8 @@ class MyMultirotorClient(airsim.MultirotorClient):
             target_x = D_x + (H_x - D_x) * ((error_dist) / real_dist)
         elif coordinate == 'GPS':
             pass
+        print(self.simGetObjectPose('NPC_3').position.x_val,self.simGetObjectPose('NPC_3').position.y_val)
+        print(D_x, D_y)
         print(target_x, target_y)
         self.moveToPositionAsync(target_x, target_y, self.hovering_altitude, velocity=3, yaw_mode=airsim.YawMode(False, 0))
         self.g_yaw = math.atan((H_y - D_y)/(H_x - D_x))

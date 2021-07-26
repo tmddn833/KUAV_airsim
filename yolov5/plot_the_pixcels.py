@@ -9,7 +9,7 @@ import math
 plot_for1 = "actual_personcoord_record"
 plot_for2 = "estimated_personcoord_record"
 # have to change exp number every execution
-save_dir = "C:\AirSim\PythonClient\multirotor\yolov5\\runs\detect\exp148\\"
+save_dir = "C:\AirSim\PythonClient\multirotor\yolov5\\runs\detect\exp137\\"
 
 
 if plot_for1 == "error_distance" or plot_for2 == "error_distance":
