@@ -1,6 +1,7 @@
 import airsim
 import math
 import time
+import threading
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
@@ -14,7 +15,8 @@ class MyMultirotorClient(airsim.MultirotorClient):
                  xdFoV=63 / 180 * math.pi,
                  hovering_altitude=-30,
                  velocity_gain=0.1,
-                 track_target=False):
+                 track_target=False,
+                 plot_threading = False):
         super(airsim.MultirotorClient, self).__init__(ip, port, timeout_value)
         self.confirmConnection()
         self.enableApiControl(True)
@@ -58,6 +60,13 @@ class MyMultirotorClient(airsim.MultirotorClient):
         
         # mission mode
         self.mission_mode = "Start"
+
+        #plot the simulation
+        if plot_threading:
+            self.thread1 = threading.Thread(target=self.plot_traj)
+            # self.thread2 = threading.Thread(target=self.connectGCS)
+            self.thread1.start()
+            # self.thread2.start()
 
     def mission_start(self, initial_point, coordinate = 'XYZ'):
         """
@@ -265,6 +274,30 @@ class MyMultirotorClient(airsim.MultirotorClient):
             # print(self.simGetCameraInfo("0"))
             self.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(0, 0, 0),
                                                    airsim.to_quaternion(self.g_pitch, 0, self.g_yaw)))
+
+    def plot_traj(self):
+        start = self.getMultirotorState().gps_location
+
+        past_point = self.simGetVehiclePose().position
+
+        while True:
+            euler = euler_from_quaternion(self.simGetCameraInfo("0").pose.orientation)
+
+            # print(w_val, x_val, y_val, z_val)
+            # print(euler)
+
+            gps = self.getMultirotorState().gps_location
+            alt = gps.altitude
+            lon = gps.longitude
+            lat = gps.latitude
+
+            # print(alt, lon, lat)
+            # plt.scatter(lon, lat)
+            # plt.pause(0.001)
+            pose = self.simGetVehiclePose().position
+            self.simPlotLineStrip([airsim.Vector3r(past_point.x_val, past_point.y_val, past_point.z_val),
+                                     airsim.Vector3r(pose.x_val, pose.y_val, pose.z_val)], is_persistent=True)
+            past_point = pose
 
 
 def euler_from_quaternion(orientation):
