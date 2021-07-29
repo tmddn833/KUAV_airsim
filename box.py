@@ -32,17 +32,17 @@ time.sleep(delay)
 vx = 0
 vy = speed
 print("moving by velocity vx=" + str(vx) + ", vy=" + str(vy)+ ", yaw=180")
-client.moveByVelocityZAsync(vx,vy,z,duration, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(False, 0)).join()
+client.moveByVelocityZAsync(vx,vy,z,duration, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(False, 90)).join()
 time.sleep(delay)
 vx = -speed
 vy = 0
 print("moving by velocity vx=" + str(vx) + ", vy=" + str(vy)+ ", yaw=270")
-client.moveByVelocityZAsync(vx, vy, z,duration, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(False, 0)).join()
+client.moveByVelocityZAsync(vx, vy, z,duration, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(False, 180)).join()
 time.sleep(delay)
 vx = 0
 vy = -speed
 print("moving by velocity vx=" + str(vx) + ", vy=" + str(vy) + ", yaw=0")
-client.moveByVelocityZAsync(vx, vy,z,duration, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(False, 0)).join()
+client.moveByVelocityZAsync(vx, vy,z,duration, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(False, 270)).join()
 time.sleep(delay)
 client.hoverAsync().join()
 client.landAsync().join()
