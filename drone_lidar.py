@@ -1,4 +1,4 @@
-# Python cl ient example to get Lidardata from a drone
+# Python client example to get Lidar data from a drone
 #
 
 import setup_path 
