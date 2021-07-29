@@ -39,7 +39,7 @@ def savePointCloud(image, fileName):
    f.close()
 
 for arg in sys.argv[1:]:
-  cloud.txt = arg
+    cloud.txt = arg
 
 client = airsim.MultirotorClient()
 
