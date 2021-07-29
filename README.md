@@ -7,9 +7,13 @@
 - main simulation python file is project_crop_yolo.py
 
 ## project_crop_yolo.py
-
-Execute the python file after running the simulation with airsimgamemode.
-
-How to launch airsimgamemode is to set the worldsetting - gamemode - game overwriting to airsim game mode in unreal engine
-
+Execute the python file after running the simulation with airsimgamemode.  
+How to launch airsimgamemode is to set the worldsetting - gamemode - game overwriting to airsim game mode in unreal engine.  
 Details in https://microsoft.github.io/AirSim/apis/
+
+## drone_control.py MyMultirotorClient class
+In this simulation, this class is mainly used. 
+Main functions that perform the mission are as follows.
+- mission_start : In arbitrary starting place, drone move to the closest point to human with given gps coordinate.
+- adjust_target_gps : find the human coord from the image detection, and adjust target coord drone have to move to.  
+- adjust_gimbal_angle : to fix the human image to center of the camera image, camera(gimbal angle) corrected in every loop with detected pixel information.  
