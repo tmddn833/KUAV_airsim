@@ -3,7 +3,7 @@ from bokeh.io import output_notebook
 import os
 bokeh_width, bokeh_height = 500,400
 lat, lon = 46.2437, 6.0251
-api_key = 'AIzaSyBJJYlhsZDmnAUGmryqI_RIsw7SQaOF-hE'
+api_key = []
 
 from bokeh.io import show
 from bokeh.plotting import gmap
