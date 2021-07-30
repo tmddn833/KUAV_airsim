@@ -2,11 +2,11 @@ import airsim
 import math
 import time
 import threading
-import numpy as np
-import matplotlib.pyplot as plt
+import folium
+from selenium import webdriver
+import os
 import cv2
-from utils import general
-from haversine import haversine
+import numpy as np
 
 
 class MyMultirotorClient(airsim.MultirotorClient):
@@ -16,7 +16,8 @@ class MyMultirotorClient(airsim.MultirotorClient):
                  hovering_altitude=-30,
                  velocity_gain=0.1,
                  track_target=False,
-                 plot_threading = False):
+                 plot_threading = False,
+                 plot_client = None):
         super(airsim.MultirotorClient, self).__init__(ip, port, timeout_value)
         self.confirmConnection()
         self.enableApiControl(True)
@@ -63,7 +64,8 @@ class MyMultirotorClient(airsim.MultirotorClient):
 
         #plot the simulation
         if plot_threading:
-            self.thread1 = threading.Thread(target=self.plot_traj)
+            self.plot_client = plot_client
+            self.thread1 = threading.Thread(target=self.plot_client.plot_traj, daemon=True)
             # self.thread2 = threading.Thread(target=self.connectGCS)
             self.thread1.start()
             # self.thread2.start()
@@ -104,6 +106,7 @@ class MyMultirotorClient(airsim.MultirotorClient):
 
         # To get the absolute coordinate of human, Find the rotation matrix
         # O : origin D : drone, G : gimbal
+        # Drone coord : front = North -> x, right = East -> y, Downward -> z
         D_orientation = self.getMultirotorState().kinematics_estimated.orientation
         G_orientation = self.simGetCameraInfo("0").pose.orientation
         OR_D = quaternion_rotation_matrix(D_orientation)
@@ -119,6 +122,7 @@ class MyMultirotorClient(airsim.MultirotorClient):
         D_x = D_pose.x_val
         T = np.array([[D_x], [D_y], [D_z]])
         # Make front -> z Left -> x below -> y on the direction the camera is looking
+        # this is transformation to camera coordinate
         R_tran = np.array([[0, 0, 1, 0], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
 
         OR_C = np.hstack((OR_G, T))
@@ -276,8 +280,6 @@ class MyMultirotorClient(airsim.MultirotorClient):
                                                    airsim.to_quaternion(self.g_pitch, 0, self.g_yaw)))
 
     def plot_traj(self):
-        start = self.getMultirotorState().gps_location
-
         past_point = self.simGetVehiclePose().position
 
         while True:
@@ -299,6 +301,26 @@ class MyMultirotorClient(airsim.MultirotorClient):
                                      airsim.Vector3r(pose.x_val, pose.y_val, pose.z_val)], is_persistent=True)
             past_point = pose
 
+def get_location_metres(original_location, dxdy):
+    """
+    Returns a Location object containing the latitude/longitude `dNorth` and `dEast` metres from the
+    specified `original_location`. The returned Location has the same `alt and `is_relative` values
+    as `original_location`.
+    The function is useful when you want to move the vehicle around specifying locations relative to
+    the current vehicle position.
+    The algorithm is relatively accurate over small distances (10m within 1km) except close to the poles.
+    For more information see:
+    http://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
+    """
+    earth_radius = 6378137.0  # Radius of "spherical" earth
+    # Coordinate offsets in radians
+    dLat = dxdy[0] / earth_radius * 180 / math.pi
+    dLon = dxdy[1] / (earth_radius * math.cos(math.pi * original_location[0] / 180))* 180 / math.pi
+
+    # New position in decimal degrees
+    newlat = original_location[0] + dLat
+    newlon = original_location[1] + dLon
+    return (newlat, newlon)
 
 def euler_from_quaternion(orientation):
     """
@@ -394,3 +416,4 @@ def quaternion_rotation_matrix(orientation):
                            [r20, r21, r22]])
 
     return rot_matrix
+

@@ -332,14 +332,15 @@ def main(opt):
 
 if __name__ == "__main__":
     opt = parse_opt()
-    # here is initial settings for simulation
+    check_requirements(exclude=('tensorboard', 'thop'))
+
     client = MyMultirotorClient(default_gimbal_pitch=-math.pi / 4,  # how much drone will look down at spawn
                                 xdFoV=63 / 180 * math.pi,
                                 hovering_altitude=-10,  # meter
                                 velocity_gain=0.3,  #
                                 track_target=True,  #
-                                plot_threading = True # plot the trajectory
-                                )
+                                plot_threading = True, # plot the trajectory
+                                plot_client=MyMultirotorClient())
     client.armDisarm(True)
     print(colorstr('detect: ') + ', '.join(f'{k}={v}' for k, v in vars(opt).items()))
 
@@ -350,7 +351,7 @@ if __name__ == "__main__":
     client.mission_start((target.position.x_val, target.position.y_val), coordinate='XYZ')
 
     # Trace the target human
-    check_requirements(exclude=('tensorboard', 'thop'))
+
     run(**vars(opt), client=client)
     os.startfile(str(client.save_dir))
 
