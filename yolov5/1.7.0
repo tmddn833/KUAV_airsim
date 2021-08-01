@@ -1,2 +1,0 @@
-Requirement already satisfied: torch in c:\users\hms\anaconda3\envs\torch\lib\site-packages (1.9.0)
-Requirement already satisfied: typing_extensions in c:\users\hms\anaconda3\envs\torch\lib\site-packages (from torch) (3.7.4.3)
