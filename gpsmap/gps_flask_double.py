@@ -17,12 +17,10 @@ def index():
     d = [0.01, 0, -0.01]
     i = int(time.time() * 10) % 3
     j = (i + 1) % 3
-    return '{"drone":{ "geometry": {"type": "Point", "coordinates": ' +\
+    return '{"drone":{"type": "Feature", "properties": { "id" :"drone"}, "geometry": {"type": "Point", "coordinates": ' +\
            str([lat_lon[0]+d[i],lat_lon[1]+d[i]]) + \
-           '}, "type": "Feature", "properties": { "id" :"drone"}},' \
-           ' "human":{ "geometry":{"type": "Point", "coordinates": ' \
-           + str([lat_lon[0]-d[j],lat_lon[1]+d[j]]) + \
-           '}, "type": "Feature", "properties": {"id" :"human"}}}'
+           '}},"human":{  "type": "Feature", "properties": {"id" :"human"}, "geometry":{"type": "Point", "coordinates": ' \
+           + str([lat_lon[0]-d[j],lat_lon[1]+d[j]]) + '}}}'
 
 # TODO 저기 properties에 id가 아닌 다른걸로 바꾸면 실행이 안된다..? + 라인에 색을 입히는 방법 + 마커를 아이콘으로 바꾸는법
 
