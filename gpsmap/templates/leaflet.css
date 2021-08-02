@@ -379,6 +379,12 @@
 .leaflet-default-icon-path {
 	background-image: url(images/marker-icon.png);
 	}
+.leaflet-drone-icon-path {
+	background-image: url(images/drone-icon.png);
+	}
+.leaflet-human-icon-path {
+	background-image: url(images/human-icon.png);
+	}
 
 
 /* attribution and scale controls */

@@ -9559,7 +9559,7 @@ L.SVG = L.Renderer.extend({
 		if (!path) { return; }
 
 		if (options.stroke) {
-			path.setAttribute('stroke', 'red');
+			path.setAttribute('stroke', options.color);
 			path.setAttribute('stroke-opacity', options.opacity);
 			path.setAttribute('stroke-width', options.weight);
 			path.setAttribute('stroke-linecap', options.lineCap);

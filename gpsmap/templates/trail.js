@@ -1,15 +1,17 @@
 var droneIcon = L.icon({
-        iconUrl: 'drone.png',
+        iconUrl: '/images/drone-icon.png',
 
         iconSize: [60, 60], // size of the icon
         iconAnchor: [0, 0], // point of the icon which will correspond to marker's location
         popupAnchor: [-3, -76] // point from which the popup should open relative to the iconAnchor
     }),
+    
     trail_drone = {
         type: 'Feature',
         properties: {
             id: "drone_line",
-            color: "#000055"
+            color:'red',
+            icon: droneIcon
         },
         geometry: {
             type: 'LineString',
@@ -20,15 +22,13 @@ var droneIcon = L.icon({
         type: 'Feature',
         properties: {
             id: "human_line",
-            color: "red"
+            color:'blue'
         },
         geometry: {
             type: 'LineString',
             coordinates: []
         },
     };
-
-
 
 var map = L.map('map', {
     layers: [
@@ -66,20 +66,23 @@ realtime = L.realtime(function(success, error) {
         .catch(error);
 }, { interval: 250 }).addTo(map);
 
-var geoJsonLayer = L.geoJson(result, {
-    onEachFeature: function(feature, layer) {
-        if (layer instanceof L.Polyline) {
-            layer.setStyle({
-                'color': feature.properties.color
-            });
-        }
-    }
-}).addTo(map);
 
 realtime.on('update', function(e) {
     if ((this._requestCount) < 10) {
         map.fitBounds(realtime.getBounds(), { maxZoom: 100 });
     } else {}
+
+    var geoJsonLayer = L.geoJson(result, {
+        onEachFeature: function(feature, layer) {
+            if (layer instanceof L.Polyline) {
+                layer.setStyle({
+                    'color': feature.properties.color,
+                    'icon' : feature.properties.icon
+                });
+            }
+        }
+    }).addTo(map);
+
     Object.keys(e.update).forEach(function(did) {
         var feature = e.update[did];
         // this.getLayer(id).bindPopup("working!");
