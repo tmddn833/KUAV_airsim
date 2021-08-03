@@ -352,7 +352,8 @@ if __name__ == "__main__":
 
     # Trace the target human
 
-    run(**vars(opt), client=client)
+
+    run(**vars(opt))
     os.startfile(str(client.save_dir))
 
 

@@ -181,7 +181,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        center = plot_one_box2(xyxy, im0, label=label, color=colors(c, True), line_thickness=line_thickness)
+                        center, foot = plot_one_box2(xyxy, im0, label=label, color=colors(c, True), line_thickness=line_thickness)
                         if c == 0:
                             human_center = center
                         if save_crop:
@@ -192,7 +192,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                     if view_img:  # Add bbox to image
                         c = int(cls)  # integer class
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        center = plot_one_box2(xyxy, im0_crop, label=label, color=colors(c, True), line_thickness=1)
+                        center, foot = plot_one_box2(xyxy, im0_crop, label=label, color=colors(c, True), line_thickness=1)
                         # if c == 0:
                         #     human_center = center
                         # if save_crop:

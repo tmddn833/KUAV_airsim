@@ -326,7 +326,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
                 self.frames[i] = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), 0) or float('inf')  # infinite stream fallback
                 _, self.imgs[i] = cap.read()  # guarantee first frame
                 self.threads[i] = Thread(target=self.update, args=([i, cap]), daemon=True)
-            print(f" success ({self.frames[i]} frames {self.w}x{self.h} at {self.fps[i]:.2f} FPS)")
+            # print(f" success ({self.frames[i]} frames {self.w}x{self.h} at {self.fps[i]:.2f} FPS)")
             self.threads[i].start()
         print('')  # newline
 
