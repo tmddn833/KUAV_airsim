@@ -10,6 +10,8 @@
 Execute the python file after running the simulation with airsimgamemode.  
 How to launch airsimgamemode is to set the worldsetting - gamemode - game overwriting to airsim game mode in unreal engine.  
 Details in https://microsoft.github.io/AirSim/apis/
+- execute command
+> python project_crop_yolo.py --source 0
 
 ## drone_control.py MyMultirotorClient class
 In this simulation, this class is mainly used. 
