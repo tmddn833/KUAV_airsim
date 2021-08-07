@@ -6,8 +6,7 @@ import os
 from pathlib import Path
 import logging
 
-
-class GpsFlask():
+class GpsFlask:
     def __init__(self, client):
         app = Flask(__name__)
         CORS(app)

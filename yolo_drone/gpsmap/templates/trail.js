@@ -33,7 +33,8 @@ var droneIcon = L.icon({
 var map = L.map('map', {
     layers: [
         L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+            attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
         })
     ]
 });
@@ -78,7 +79,7 @@ L.control.scale().addTo(map);
 
 realtime.on('update', function(e) {
     if ((this._requestCount) < 10) {
-        map.fitBounds(realtime.getBounds(), { maxZoom: 100 });
+        map.fitBounds(realtime.getBounds(), { maxZoom: 1000 });
     } else {}
     Object.keys(e.update).forEach(function(did) {
         var feature = e.update[did];
