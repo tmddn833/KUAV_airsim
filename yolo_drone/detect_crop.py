@@ -202,8 +202,8 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
 
             # Stream results
             if view_img:
-                cv2.imshow("Crop", im0_crop)
                 cv2.imshow(str(p), im0)
+                cv2.imshow("Crop", im0_crop)
                 cv2.waitKey(1)  # 1 millisecond
 
             # Save results (image with detections)
@@ -224,10 +224,6 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                             save_path += '.mp4'
                         vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer[i].write(im0)
-        try:
-            print(human_center)
-        except:
-            pass
 
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''

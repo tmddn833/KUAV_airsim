@@ -36,7 +36,7 @@ results*.txt
 coco/
 coco128/
 VOC/
-
+!visdrone_trained_model/
 # MATLAB GitIgnore -----------------------------------------------------------------------------------------------------
 *.m~
 *.mat
@@ -45,6 +45,7 @@ VOC/
 # Neural Network weights -----------------------------------------------------------------------------------------------
 *.weights
 *.pt
+
 *.onnx
 *.mlmodel
 *.torchscript

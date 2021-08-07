@@ -357,8 +357,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
                     #  원래는 thread코딩하려고했는데 client.simGetImage가 여기에서 사용되어서
                     #  다른 thread에서 client호출이 안됨 그래서 그냥 여기에 drone contol전부하는중
 
-                    self.client.adjust_gimbal_angle()
-                    self.client.adjust_target_gps()
+                    self.client.drone_contol()
 
                 time.sleep(1 / self.fps[i])  # wait time
         else:

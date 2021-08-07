@@ -13,7 +13,7 @@ import sys
 def printUsage():
    print("Usage: python camera.py [depth|segmentation|scene]")
 
-cameraType = "depth"
+cameraType = "scene"
 
 for arg in sys.argv[1:]:
   cameraType = arg.lower()

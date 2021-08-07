@@ -20,18 +20,21 @@ def get_location_metres(original_location, dxdy):
     # New position in decimal degrees
     newlat = original_location[0] + dLat
     newlon = original_location[1] + dLon
-    return (newlat, newlon)
+    return [newlat, newlon]
 
-def get_metres_location():
+def get_metres_location(original_location, other_location):
+    """Convert distance from degrees longitude-latitude to meters.
+        Takes the two points described by (Lat,Lon) in degrees
+        and converts it into distances *dx(north distance)* and *dy(east distance)* in meters.
+        returns (float, float)
+    """
     earth_radius = 6378137.0  # Radius of "spherical" earth
     # Coordinate offsets in radians
-    dLat = dxdy[0] / earth_radius * 180 / math.pi
-    dLon = dxdy[1] / (earth_radius * math.cos(math.pi * original_location[0] / 180)) * 180 / math.pi
+    dLatLon=[other_location[0]-original_location[0], other_location[1]-original_location[1]]
+    dx = dLatLon[0]*earth_radius
+    dy = dLatLon[1]*(earth_radius * math.cos(math.pi * original_location[0] / 180))*math.pi/180
 
-    # New position in decimal degrees
-    newlat = original_location[0] + dLat
-    newlon = original_location[1] + dLon
-    return (newlat, newlon)
+    return [dx, dy]
 
 
 def euler_from_quaternion(orientation):
