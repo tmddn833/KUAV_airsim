@@ -320,13 +320,13 @@ class LoadStreams:  # multiple IP or RTSP cameras
             else:
                 cap = cv2.VideoCapture(s)
                 assert cap.isOpened(), f'Failed to open {s}'
-                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                self.w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                self.h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 self.fps[i] = max(cap.get(cv2.CAP_PROP_FPS) % 100, 0) or 30.0  # 30 FPS fallback
                 self.frames[i] = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), 0) or float('inf')  # infinite stream fallback
                 _, self.imgs[i] = cap.read()  # guarantee first frame
                 self.threads[i] = Thread(target=self.update, args=([i, cap]), daemon=True)
-            print(f" success ({self.frames[i]} frames {self.w}x{self.h} at {self.fps[i]:.2f} FPS)")
+            # print(f" success ({self.frames[i]} frames {self.w}x{self.h} at {self.fps[i]:.2f} FPS)")
             self.threads[i].start()
         print('')  # newline
 
@@ -357,8 +357,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
                     #  원래는 thread코딩하려고했는데 client.simGetImage가 여기에서 사용되어서
                     #  다른 thread에서 client호출이 안됨 그래서 그냥 여기에 drone contol전부하는중
 
-                    self.client.adjust_gimbal_angle()
-                    self.client.adjust_target_gps()
+                    self.client.drone_contol()
 
                 time.sleep(1 / self.fps[i])  # wait time
         else:
