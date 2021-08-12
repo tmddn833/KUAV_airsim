@@ -309,6 +309,8 @@ class LoadStreams:  # multiple IP or RTSP cameras
                 s = pafy.new(s).getbest(preftype="mp4").url  # YouTube URL
             s = eval(s) if s.isnumeric() else s  # i.e. s = '0' local webcam
             if client != None:
+                # get the image and get senser information at the same time
+                # this is very important!
                 rawImage = client.simGetImage("0", self.cameraTypeMap[cameraType])
                 cap = cv2.imdecode(airsim.string_to_uint8_array(rawImage), cv2.IMREAD_UNCHANGED)
                 self.w = int(cap.shape[1])
@@ -320,8 +322,8 @@ class LoadStreams:  # multiple IP or RTSP cameras
             else:
                 cap = cv2.VideoCapture(s)
                 assert cap.isOpened(), f'Failed to open {s}'
-                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                self.w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                self.h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 self.fps[i] = max(cap.get(cv2.CAP_PROP_FPS) % 100, 0) or 30.0  # 30 FPS fallback
                 self.frames[i] = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), 0) or float('inf')  # infinite stream fallback
                 _, self.imgs[i] = cap.read()  # guarantee first frame
@@ -345,6 +347,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
                 # _, self.imgs[index] = cap.read()
                 if n % read == 0:
                     rawImage = self.client.simGetImage("0", self.cameraTypeMap[self.cameraType])
+                    self.client.load_sim_info()
                     try:
                         im = cv2.imdecode(airsim.string_to_uint8_array(rawImage), cv2.IMREAD_UNCHANGED)
                         self.imgs[i] = im[:, :, :3]

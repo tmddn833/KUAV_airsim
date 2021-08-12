@@ -123,15 +123,18 @@ class MyMultirotorClient(airsim.MultirotorClient):
         # self.moveToPositionAsync(0, 0, self.hovering_altitude, velocity=5).join()
 
     def drone_contol(self):
-        self.read_sim_info()
         self.adjust_target_gps()
         self.adjust_gimbal_angle()
         if self.plot_threading:
             self.plot_traj()
 
+    def load_sim_info(self):
+        self.multirotor_state_temp= self.getMultirotorState()
+        # self.camera_state_temp = self.simGetCameraInfo("0")
+
     def read_sim_info(self):
-        self.multirotor_state = self.getMultirotorState()
-        self.camera_state = self.simGetCameraInfo("0")
+        self.multirotor_state = self.multirotor_state_temp
+        # self.camera_state = self.camera_state_temp
 
     def adjust_target_gps(self):
         # trace by image detected point
@@ -142,7 +145,7 @@ class MyMultirotorClient(airsim.MultirotorClient):
         # O : origin D : drone, G : gimbal
         # Drone coord : front = North -> x, right = East -> y, Downward -> z
         D_orientation = self.multirotor_state.kinematics_estimated.orientation
-        G_orientation = self.camera_state.pose.orientation
+        # G_orientation = self.camera_state.pose.orientation
         OR_D = quaternion_rotation_matrix(D_orientation)
         DR_G = quaternion_rotation_matrix(airsim.to_quaternion(self.g_pitch, self.g_roll, self.g_yaw))
 
@@ -175,9 +178,9 @@ class MyMultirotorClient(airsim.MultirotorClient):
         target_y = D_y + (H_y - D_y) * ((error_dist) / real_dist)
         target_x = D_x + (H_x - D_x) * ((error_dist) / real_dist)
         dx, dy = target_x - D_x, target_y - D_y
+        self.velocity_gain * dx
         if self.track_target:
-            self.moveByVelocityZAsync(self.velocity_gain * dx, self.velocity_gain * dy, self.hovering_altitude,
-                                      duration=1)
+            self.moveByVelocityZAsync(self.velocity_gain * dx, self.velocity_gain * dy, self.hovering_altitude, duration=self.velocity_gain)
 
         # recording
         human_pose = self.simGetObjectPose("NPC_3")
@@ -218,8 +221,6 @@ class MyMultirotorClient(airsim.MultirotorClient):
             self.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(0, 0, 0),
                                                    airsim.to_quaternion(self.g_pitch, 0, self.g_yaw)))
         else:
-            self.img_dx = self.img_human_foot[0] - self.w / 2
-            self.img_dy = self.img_human_foot[1] - self.h / 2
             y_pgain = -0.00005
             x_pgain = 0.00015
             self.g_pitch = max(min(self.g_pitch + self.img_dy * y_pgain, self.g_pitch_limit[1]), self.g_pitch_limit[0])

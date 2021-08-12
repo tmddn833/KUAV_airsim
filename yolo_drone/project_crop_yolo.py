@@ -230,10 +230,13 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                             if c == 0:
                                 client.img_human_center = center
                                 client.img_human_foot = foot
+                                client.read_sim_info()
+                                client.img_dx = client.img_human_foot[0] - client.w / 2
+                                client.img_dy = client.img_human_foot[1] - client.h / 2
                                 client.human_detect = True
                                 # total_detect = True
                 # Print time (inference + NMS)
-            print(f'{s}Done. ({t2 - t1:.3f}s)')
+            print(f'{s}Done. ({t2 - t1:.3f}s), {client.img_human_foot}')
 
             # Stream results
             fontFace = cv2.FONT_HERSHEY_SIMPLEX
@@ -307,7 +310,8 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
 def parse_opt():
     parser = argparse.ArgumentParser()
     # parser.add_argument('--weights', nargs='+', type=str, default='yolov5s.pt', help='model.pt path(s)')
-    parser.add_argument('--weights', nargs='+', type=str, default="C:\seungwoo\KUAV\KUAV_airsim\yolo_drone\\visdrone_trained_model\weights\\best.pt", help='model.pt path(s)')
+    # parser.add_argument('--weights', nargs='+', type=str, default="C:\seungwoo\KUAV\yolov5\\runs\\train\exp25\weights\\best.pt", help='model.pt path(s)')
+    parser.add_argument('--weights', nargs='+', type=str, default="C:\seungwoo\KUAV\yolov5\\visdrone_trained_model\weights\\best.pt", help='model.pt path(s)')
     parser.add_argument('--source', type=str, default='data/images', help='file/dir/URL/glob, 0 for webcam')
     parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.25, help='confidence threshold')
@@ -340,7 +344,7 @@ if __name__ == "__main__":
     client = MyMultirotorClient(default_gimbal_pitch=-math.pi / 4,  # how much drone will look down at spawn
                                 xdFoV=63 / 180 * math.pi,
                                 hovering_altitude=-30,  # meter
-                                velocity_gain=0.25,  #
+                                velocity_gain=0.5,  #
                                 track_target=True,  #
                                 plot_threading=False  # plot the trajectory
                                 )

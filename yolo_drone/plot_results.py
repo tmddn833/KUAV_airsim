@@ -85,5 +85,5 @@ def plot_results(dir):
         ).add_to(m)
 
     m.save(str(dir / "map.html"))
-    webbrowser.open(dir / "map.html")
-    plt.show()
+    # webbrowser.open(dir / "map.html")
+    # plt.show()
