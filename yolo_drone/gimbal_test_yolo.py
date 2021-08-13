@@ -99,6 +99,8 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
     human_cen = (dataset.w, dataset.h)
     img_dx = 0
     img_dy = 0
+    target_yaw = 0
+    target_pitch = 0
 
     for path, img, im0s, vid_cap in dataset:
         img = torch.from_numpy(img).to(device)
@@ -153,12 +155,19 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
             
             if gimbal_control:
                 # gimbal control code
-                img_dx = dataset.w/2 - human_cen[0]
-                img_dy = dataset.h/2 - human_cen[1]
-                print(img_dx, img_dy)
-                pitch_gain = 0.1
-                yaw_gain = 0.1
-                setpitchrollyaw(yaw_gain*img_dy, 0, pitch_gain*img_dx)
+                img_dx = human_cen[0] - dataset.w/2
+                img_dy = human_cen[1] - dataset.h/2
+
+                pitch_gain = 0.01
+                yaw_gain = -0.02
+                target_pitch += pitch_gain*img_dy
+                target_yaw += yaw_gain*img_dx
+                #   Pitch     Roll      Yaw      axislimit
+                # [Min, Max, Min, Max, Min, Max]
+                target_pitch = min(max(axislimit[0], target_pitch),axislimit[1])
+                target_yaw = min(max(axislimit[4], target_yaw), axislimit[5])
+                print(f"img_dx {img_dx}, img_dy {img_dy}, target_pitch {target_pitch}, target_yaw {target_yaw}")
+                setpitchrollyaw(target_pitch, 0, target_yaw)
 
             # Stream results
             if view_img:
@@ -236,6 +245,7 @@ if __name__ == "__main__":
     paramstore(safemode)  
     sleepmultipliercalc()
     intervalcalc()
+    setpitchrollyaw(0, 0, 0)
     print("Done")
 
     run(**vars(opt), gimbal_control = True)
