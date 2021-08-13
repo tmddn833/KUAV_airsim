@@ -102,26 +102,10 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
     t0 = time.time()
 
     # to check the detection
-    '''
-    한번이라도 total image를 통해서 detect된적이 있으면, 그 다음부터는 무조건 crop을 사용
-    crop을 이용할때, 이전 crop이미지에서 detect에 실패했다면, crop사이즈를 늘린다(사람이 걸어다니니까)
-    이전 crop에서 detect에 성공했다면, crop사이즈는 100*100으로 유지
-    while True:
-      if ever detected in total image:
-        if detect in crop image in previous loop:
-          crop 50size with previous pixel
-        else :
-          increase cropsize and try detect again
-      else : try detect with total image
-    '''
     client.human_detect = False  # if the model do detect
-    crop_detect = False  # if the model detect in crop image
-    total_detect = False  # True if it has ever detected in total image
     n = 0  # the number of detect iteration
     client.img_human_center = (int(dataset.imgs[0].shape[1] / 2), int(dataset.imgs[0].shape[0] / 2))
     client.img_human_foot = client.img_human_center
-    cropsize = 50
-
     for path, img, im0s, vid_cap in dataset:
         # print(img.shape) # (1, 3, 480, 640)
         # print(im0s[0].shape) # (480, 640, 3)
@@ -131,58 +115,16 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
         if img.ndimension() == 3:
             img = img.unsqueeze(0)
 
-        # make crop version
-        if total_detect:  # In this condition, the crop detection occur
-            if not crop_detect:
-                cropsize += 4
-                if crop_detect > 100:
-                    total_detect = False
-                    pass
-            else:
-                cropsize = 50
-            img0_crop = im0s.copy()
-            img0_crop = img0_crop[0]
-            # image shape y,x (height and width)
-            lowerbound_x = max(client.img_human_center[0] - cropsize, 0)
-            higherbound_x = min(client.img_human_center[0] + cropsize, img0_crop.shape[1])
-            lowerbound_y = max(client.img_human_center[1] - cropsize, 0)
-            higherbound_y = min(client.img_human_center[1] + cropsize, img0_crop.shape[0])
-
-            img0_crop = img0_crop[lowerbound_y:higherbound_y, lowerbound_x:higherbound_x]
-            img0_crop = [img0_crop]
-            img_crop = [letterbox(x, imgsz, stride=stride)[0] for x in img0_crop]
-            img_crop = np.stack(img_crop, 0)
-            img_crop = img_crop[..., ::-1].transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW
-            img_crop = np.ascontiguousarray(img_crop)
-
-            # print(img.shape) # (1, 3, 480, 640)
-            img_crop = torch.from_numpy(img_crop).to(device)
-            img_crop = img_crop.half() if half else img_crop.float()  # uint8 to fp16/32
-            img_crop /= 255.0  # 0 - 255 to 0.0 - 1.0
-            if img_crop.ndimension() == 3:
-                img_crop = img_crop.unsqueeze(0)
-
         # Inference & Apply NMS
         t1 = time_synchronized()
-        if total_detect:  # crop condition
-            pred_raw_crop = model(img_crop, augment=augment)[0]
-            pred_crop = non_max_suppression(pred_raw_crop, conf_thres, iou_thres, classes, agnostic_nms,
-                                            max_det=max_det)
-            pred = pred_crop
-        else:
-            pred_raw = model(img, augment=augment)[0]
-            pred = non_max_suppression(pred_raw, conf_thres * 2, iou_thres * 2, classes, agnostic_nms, max_det=max_det)
+        pred_raw = model(img, augment=augment)[0]
+        pred = non_max_suppression(pred_raw, conf_thres * 2, iou_thres * 2, classes, agnostic_nms, max_det=max_det)
         t2 = time_synchronized()
-
         client.human_detect = False
-        crop_detect = False
-
         # Process detections
         for i, det in enumerate(pred):  # iteration per source(one loop for one source)
             if webcam:  # batch_size >= 1
                 p, s, im0, frame = path[i], f'{i}: ', im0s[i].copy(), dataset.count
-                if total_detect:  # crop condition
-                    im0_crop = img0_crop[i].copy()
             else:
                 p, s, im0, frame = path, '', im0s.copy(), getattr(dataset, 'frame', 0)
 
@@ -193,10 +135,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
 
             if len(det):
                 # Rescale boxes from img_size to im0 size
-                if total_detect:  # crop condition
-                    det[:, :4] = scale_coords(img_crop.shape[2:], det[:, :4], im0_crop.shape).round()
-                else:
-                    det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
                 # Print results
                 for c in det[:, -1].unique():
@@ -204,37 +143,20 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
                 # Write results for crop
-                if total_detect:  # crop condition
-                    for *xyxy, conf, cls in reversed(det):
-                        if view_img:  # Add bbox to image
-                            c = int(cls)  # integer class
-                            label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                            center, foot = plot_one_box2(xyxy, im0_crop, label=label, color=colors(c, True),
-                                                         line_thickness=1)
-                            if c == 0:
-                                # print(center, lowerbound_x, lowerbound_y, im0.shape, im0_crop.shape)
-                                # (132, 106) 540 380 (960, 1280, 3) (200, 200, 3) -> the ratio always same, just add
-                                center = (lowerbound_x + center[0], lowerbound_y + center[1])
-                                foot = (lowerbound_x + foot[0], lowerbound_y + foot[1])
-                                client.img_human_center = center
-                                client.img_human_foot = foot
-                                client.human_detect = True
-                                crop_detect = True
-                else:
-                    for *xyxy, conf, cls in reversed(det):
-                        if save_img or view_img:  # Add bbox to image
-                            c = int(cls)  # integer class
-                            label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                            center, foot = plot_one_box2(xyxy, im0, label=label, color=colors(c, True),
-                                                         line_thickness=1)
-                            if c == 0:
-                                client.img_human_center = center
-                                client.img_human_foot = foot
-                                client.read_sim_info()
-                                client.img_dx = client.img_human_foot[0] - client.w / 2
-                                client.img_dy = client.img_human_foot[1] - client.h / 2
-                                client.human_detect = True
-                                # total_detect = True
+                for *xyxy, conf, cls in reversed(det):
+                    if save_img or view_img:  # Add bbox to image
+                        c = int(cls)  # integer class
+                        label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
+                        center, foot = plot_one_box2(xyxy, im0, label=label, color=colors(c, True),
+                                                     line_thickness=1)
+                        if c == 0:
+                            client.img_human_center = center
+                            client.img_human_foot = foot
+                            client.read_sim_info()
+                            client.img_dx = client.img_human_foot[0] - client.w / 2
+                            client.img_dy = client.img_human_foot[1] - client.h / 2
+                            client.human_detect = True
+                            # total_detect = True
                 # Print time (inference + NMS)
             print(f'{s}Done. ({t2 - t1:.3f}s), {client.img_human_foot}')
 
@@ -248,13 +170,6 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                 # if total_detect:
                 #     cv2.rectangle(im0, [lowerbound_x, lowerbound_y], [higherbound_x, higherbound_y],
                 #                   (0, 255, 0), -1, cv2.LINE_4)
-                if crop_detect:
-                    # cv2.imshow("Crop", im0_crop)
-                    # qim0[im0.shape[0]-im0_crop.shape[0]:im0.shape[0],0:im0_crop.shape[1], :] = im0_crop
-                    im0[lowerbound_y:higherbound_y, lowerbound_x:higherbound_x] = im0_crop
-                    cv2.putText(im0, 'Crop', (lowerbound_x, lowerbound_y + textSize[1]), fontFace,
-                                fontScale,
-                                (255, 0, 255), thickness)
                 cv2.line(im0,
                          (int(client.img_dx + im0.shape[1] / 2), int(im0.shape[0] / 2)),
                          (int(im0.shape[1] / 2), int(im0.shape[0] / 2)), (0, 0, 255),
@@ -265,10 +180,6 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                          thickness=1, lineType=cv2.LINE_AA)
                 cv2.putText(im0, 'Human Detection ' + str(client.human_detect), (10, 10 + textSize[1]), fontFace,
                             fontScale,
-                            (255, 0, 255), thickness)
-                cv2.putText(im0, 'Crop Detection ' + str(crop_detect), (10, 25 + textSize[1]), fontFace, fontScale,
-                            (255, 0, 255), thickness)
-                cv2.putText(im0, ' Total Detection ' + str(total_detect), (10, 40 + textSize[1]), fontFace, fontScale,
                             (255, 0, 255), thickness)
                 cv2.imshow(str(p), im0)
                 # cv2.waitKey(1)  # 1 millisecond
