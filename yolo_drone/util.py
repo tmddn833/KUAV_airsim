@@ -1,6 +1,32 @@
 import math
 import numpy as np
 
+
+def get_intersections(cen0, r0, cen1, r1):
+    # circle 1: (x0, y0), radius r0
+    # circle 2: (x1, y1), radius r1
+    x0, y0 = cen0
+    x1, y1 = cen1
+    d = math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2)
+
+    # non intersecting
+    if d > r0 + r1:
+        return None
+    # One circle within other
+    if d < abs(r0 - r1):
+        return None
+    # coincident circles
+    if d == 0 and r0 == r1:
+        return None
+    else:
+        a = (r0 ** 2 - r1 ** 2 + d ** 2) / (2 * d)
+        h = math.sqrt(r0 ** 2 - a ** 2)
+        x2 = x0 + a * (x1 - x0) / d
+        y2 = y0 + a * (y1 - y0) / d
+        inter0 = (x2 + h * (y1 - y0) / d, y2 - h * (x1 - x0) / d)
+        inter1 = (x2 - h * (y1 - y0) / d, y2 + h * (x1 - x0) / d)
+        return (inter0, inter1)
+
 def get_location_metres(original_location, dxdy):
     """
     Returns a Location object containing the latitude/longitude `dNorth` and `dEast` metres from the
@@ -22,6 +48,7 @@ def get_location_metres(original_location, dxdy):
     newlon = original_location[1] + dLon
     return [newlat, newlon]
 
+
 def get_metres_location(original_location, other_location):
     """Convert distance from degrees longitude-latitude to meters.
         Takes the two points described by (Lat,Lon) in degrees
@@ -30,9 +57,9 @@ def get_metres_location(original_location, other_location):
     """
     earth_radius = 6378137.0  # Radius of "spherical" earth
     # Coordinate offsets in radians
-    dLatLon=[other_location[0]-original_location[0], other_location[1]-original_location[1]]
-    dx = dLatLon[0]*earth_radius
-    dy = dLatLon[1]*(earth_radius * math.cos(math.pi * original_location[0] / 180))*math.pi/180
+    dLatLon = [other_location[0] - original_location[0], other_location[1] - original_location[1]]
+    dx = dLatLon[0] * earth_radius * math.pi / 180
+    dy = dLatLon[1] * (earth_radius * math.cos(math.pi * original_location[0] / 180)) * math.pi / 180
 
     return [dx, dy]
 

@@ -7,8 +7,11 @@ import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from util import get_location_metres, get_metres_location, euler_from_quaternion, quaternion_rotation_matrix
+from util import get_location_metres, get_metres_location, euler_from_quaternion, quaternion_rotation_matrix, \
+    get_intersections
 from plot_results import plot_results
+
+NO_FLY_RADIUS = 10  # 10m
 
 
 class MyMultirotorClient(airsim.MultirotorClient):
@@ -18,11 +21,13 @@ class MyMultirotorClient(airsim.MultirotorClient):
                  hovering_altitude=-30,
                  velocity_gain=0.1,
                  track_target=False,
-                 plot_threading=False
+                 plot_traj=False
                  ):
         super(airsim.MultirotorClient, self).__init__(ip, port, timeout_value)
         self.confirmConnection()
         self.enableApiControl(True)
+        self.armDisarm(True)
+        self.takeoffAsync(timeout_sec=1).join()
         self.save_dir = None
 
         # Initial settings
@@ -32,7 +37,7 @@ class MyMultirotorClient(airsim.MultirotorClient):
         self.following_distance = hovering_altitude / math.tan(default_gimbal_pitch)
         self.velocity_gain = velocity_gain
         self.xdFoV = xdFoV
-        self.plot_threading = plot_threading
+        self.plot_traj = plot_traj
 
         # get starting info
         self.multirotor_state = self.getMultirotorState()
@@ -46,18 +51,15 @@ class MyMultirotorClient(airsim.MultirotorClient):
         f = self.w / (2 * math.tan(self.xdFoV / 2))
         self.K = np.array([[f, 0, self.w / 2], [0, f, self.h / 2], [0, 0, 1]])
         self.K_inv = np.linalg.inv(self.K)
-
-        # gimbal
-        self.g_pitch_limit = [-math.pi / 2, 0]
-        self.g_yaw_limit = [-math.pi, math.pi]
-
         # x,y # to estimate the location of human
         self.img_human_center = self.img_human_foot = (self.w / 2, self.h / 2)
         self.img_dx = 0  # camera_center ~ img_human_center error
         self.img_dy = 0
-
         self.human_detect = False
-        self.start = self.multirotor_state.kinematics_estimated.position
+
+        # gimbal
+        self.g_pitch_limit = [-math.pi / 2, 0]
+        self.g_yaw_limit = [-math.pi, math.pi]
 
         # gps data
         self.start_gps = self.multirotor_state.gps_location
@@ -65,7 +67,11 @@ class MyMultirotorClient(airsim.MultirotorClient):
         self.drone_lon_lat = [self.start_gps.longitude, self.start_gps.latitude]
 
         # mission mode
-        self.mission_mode = "Start"
+        self.mission_mode = "START"
+        self.simPrintLogMessage("Mission Mode: ", self.mission_mode)
+        self.start = self.multirotor_state.kinematics_estimated.position
+        self.no_fly_center = [None, None]
+        self.no_fly_center_gps = [None, None]
 
         # recordings
         self.estimated_personcoord_record = []
@@ -78,15 +84,27 @@ class MyMultirotorClient(airsim.MultirotorClient):
         self.human_lon_lat_record = []
         self.human_lon_lat_real_record = []
 
-    def mission_start(self, initial_point, coordinate='XYZ'):
+    def mission_start(self, initial_point, no_fly_center, coordinate='XYZ', ):
         """
-        :param initial_point: xy or gps(lon, lat) initial coordinate
+        :param initial_point: xy or gps(lat, lon) initial coordinate
+        :param no_fly_center:no_fly zone center coordinate
         :param coordinate: 'XYZ' or 'GPS' coordinate option
         :return: go to mission starting place
         """
         # First takeoff
-        if self.mission_mode != "Start":
+        if self.mission_mode != "START":
             return
+        if no_fly_center:
+            if coordinate == 'XYZ':
+                self.no_fly_center = no_fly_center
+                self.no_fly_center_gps = get_location_metres([self.start_gps.latitude, self.start_gps.longitude],
+                                                             no_fly_center)
+            else:  # gps
+                self.no_fly_center = get_metres_location([self.start_gps.latitude, self.start_gps.longitude],
+                                                         no_fly_center)
+                self.no_fly_center_gps = no_fly_center
+            print("No Fly Zone center in meters : ", self.no_fly_center)
+            print("No Fly Zone center in GPS: ", self.no_fly_center_gps)
 
         if coordinate == 'XYZ':
             # D_pose = self.multirotor_state.kinematics_estimated.position
@@ -99,37 +117,52 @@ class MyMultirotorClient(airsim.MultirotorClient):
             error_dist = real_dist - self.following_distance
             target_y = D_y + (H_y - D_y) * ((error_dist) / real_dist)
             target_x = D_x + (H_x - D_x) * ((error_dist) / real_dist)
+            print("Human Starting point in meters: ", initial_point)
+            print("Human Starting point in GPS: ",
+                  get_location_metres([self.start_gps.latitude, self.start_gps.longitude], initial_point))
+            print("Drone mission starting point in meters :", [target_x, target_y])
+            print("Drone mission starting GPS :",
+                  get_location_metres([self.start_gps.latitude, self.start_gps.longitude], [target_x, target_y]))
         elif coordinate == 'GPS':
-            pass
-
-        print("Human Starting point in meters: ", initial_point)
-        print("Human Starting point in GPS: ",
-              get_location_metres([self.start_gps.latitude, self.start_gps.longitude], initial_point))
-        print("Drone mission starting point in meters :", [target_x, target_y])
-        print("Drone mission starting GPS :",
-              get_location_metres([self.start_gps.latitude, self.start_gps.longitude], [target_x, target_y]))
+            D_lat_lon = [self.start_gps.latitude, self.start_gps.longitude]
+            H_lat_lon = initial_point
+            self.human_lon_lat = [initial_point[1], initial_point[0]]
+            [H_x, H_y] = get_metres_location(D_lat_lon, H_lat_lon)
+            real_dist = math.sqrt(H_x ** 2 + H_y ** 2)
+            error_dist = real_dist - self.following_distance
+            target_y = H_y * ((error_dist) / real_dist)
+            target_x = H_x * ((error_dist) / real_dist)
+            print("Human Starting point in meters: ", [H_x, H_y])
+            print("Human Starting point in GPS: ", H_lat_lon)
+            print("Drone mission starting point in meters :", [target_x, target_y])
+            print("Drone mission starting GPS :",
+                  get_location_metres(D_lat_lon, [target_x, target_y]))
 
         # Movement command
-        target_yaw = math.atan((H_y - D_y) / (H_x - D_x))
+        target_yaw = math.atan2(H_y ,H_x)
         orientation_D = self.multirotor_state.kinematics_estimated.orientation
         orientation_G = self.camera_state.pose.orientation
         r, p, y = euler_from_quaternion(orientation_G)
         dr, dp, dy = euler_from_quaternion(orientation_D)
-        self.g_roll, self.g_pitch, self.g_yaw = r - dr, self.default_gimbal_pitch - dp, target_yaw - dy
+        self.g_roll, self.g_pitch, self.g_yaw = r - dr, self.default_gimbal_pitch - dp, 0
         self.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(0, 0, 0),
-                                               airsim.to_quaternion(self.g_pitch, 0, self.g_yaw)))
+                                               airsim.to_quaternion(self.g_pitch, 0, 0)))
         print('move to initial point')
-        self.moveToPositionAsync(target_x, target_y, self.hovering_altitude, velocity=5).join()
+        self.moveToPositionAsync(target_x, target_y, self.hovering_altitude,
+                                 yaw_mode=airsim.YawMode(False, target_yaw * 180 / math.pi),
+                                 velocity=5).join()
         # self.moveToPositionAsync(0, 0, self.hovering_altitude, velocity=5).join()
+        self.mission_mode = 'WAITING'
+        self.simPrintLogMessage("Mission Mode: ", self.mission_mode)
 
     def drone_contol(self):
         self.adjust_target_gps()
         self.adjust_gimbal_angle()
-        if self.plot_threading:
-            self.plot_traj()
+        if self.plot_traj:
+            self.plot_trajectory()
 
     def load_sim_info(self):
-        self.multirotor_state_temp= self.getMultirotorState()
+        self.multirotor_state_temp = self.getMultirotorState()
         # self.camera_state_temp = self.simGetCameraInfo("0")
 
     def read_sim_info(self):
@@ -174,13 +207,23 @@ class MyMultirotorClient(airsim.MultirotorClient):
         H_x, H_y = (xy_est[0], xy_est[1])
         real_dist = math.sqrt((D_x - H_x) ** 2 + (D_y - H_y) ** 2)
         error_dist = real_dist - self.following_distance
-
+        self.mission_mode = "FOLLOWING"
+        self.simPrintLogMessage("Mission Mode: ", self.mission_mode)
         target_y = D_y + (H_y - D_y) * ((error_dist) / real_dist)
         target_x = D_x + (H_x - D_x) * ((error_dist) / real_dist)
+
+        if NO_FLY_RADIUS+3 >= math.sqrt(
+                (target_x - self.no_fly_center[0]) ** 2 + (target_y - self.no_fly_center[1]) ** 2):
+            self.mission_mode = "AVOID"
+            target_x, target_y = get_intersections([H_x, H_y], self.following_distance, self.no_fly_center,
+                                                   NO_FLY_RADIUS+3)[0]  # no fly radius
         dx, dy = target_x - D_x, target_y - D_y
-        self.velocity_gain * dx
+        target_yaw = math.atan2((H_y - D_y),(H_x - D_x))
         if self.track_target:
-            self.moveByVelocityZAsync(self.velocity_gain * dx, self.velocity_gain * dy, self.hovering_altitude, duration=self.velocity_gain)
+            self.simPrintLogMessage("Mission Mode: ", self.mission_mode)
+            self.moveByVelocityZAsync(self.velocity_gain * dx, self.velocity_gain * dy, self.hovering_altitude,
+                                      duration=self.velocity_gain,
+                                      yaw_mode=airsim.YawMode(False, target_yaw * 180 / math.pi))
 
         # recording
         human_pose = self.simGetObjectPose("NPC_3")
@@ -229,13 +272,20 @@ class MyMultirotorClient(airsim.MultirotorClient):
             self.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(0, 0, 0),
                                                    airsim.to_quaternion(self.g_pitch, 0, self.g_yaw)))
 
-    def plot_traj(self):
-        self.past_point = self.multirotor_state.kinematics_estimated.position
-
-        self.pose = self.simGetVehiclePose().position
-        self.simPlotLineStrip([airsim.Vector3r(self.past_point.x_val, self.past_point.y_val, self.past_point.z_val),
-                               airsim.Vector3r(self.pose.x_val, self.pose.y_val, self.pose.z_val)], is_persistent=True)
-        self.past_point = self.pose
+    def plot_trajectory(self):
+        # plot the traj of drone
+        # self.past_point = self.multirotor_state.kinematics_estimated.position
+        #
+        # self.pose = self.simGetVehiclePose().position
+        # self.simPlotLineStrip([airsim.Vector3r(self.past_point.x_val, self.past_point.y_val, self.past_point.z_val),
+        #                        airsim.Vector3r(self.pose.x_val, self.pose.y_val, self.pose.z_val)], is_persistent=True)
+        # self.past_point = self.pose
+        try:
+            target = self.drone_target_record[-1]
+            self.simPlotPoints([airsim.Vector3r(target[0], target[1], self.hovering_altitude)], duration=4,
+                               color_rgba=[1.0, 1.0, 1.0, 0.5])
+        except:
+            pass
 
     def live_plot(self):
         while True:
@@ -256,4 +306,4 @@ class MyMultirotorClient(airsim.MultirotorClient):
         df['human_lon_lat_record'] = self.human_lon_lat_record
         df['human_lon_lat_real_record'] = self.human_lon_lat_real_record
         df.to_csv(self.save_dir / "simulation_data.csv")
-        plot_results(self.save_dir)
+        plot_results(self.save_dir, self.no_fly_center_gps)

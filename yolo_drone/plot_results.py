@@ -9,7 +9,7 @@ import folium
 import webbrowser
 
 
-def plot_results(dir):
+def plot_results(dir, no_fly_zone_cen):
     df = pd.read_csv(dir / "simulation_data.csv")
     plt.figure(1)
     est_p_x = df['estimated_personcoord_record'].apply(lambda x: eval(x)[0])
@@ -48,9 +48,15 @@ def plot_results(dir):
     plt.savefig(dir / 'error distance.png')
 
     plt.figure(4)
+    D_x = df['drone_coord_record'].apply(lambda x: eval(x)[0])
+    D_y = df['drone_coord_record'].apply(lambda x: eval(x)[1])
+    D_gps_lon = df['drone_lon_lat_record'].apply(lambda x: eval(x)[0])
+    D_gps_lat = df['drone_lon_lat_record'].apply(lambda x: eval(x)[1])
     target_x = df['drone_target_record'].apply(lambda x: eval(x)[0])
     target_y = df['drone_target_record'].apply(lambda x: eval(x)[1])
-    plt.scatter(target_y, target_x, label='human_est', s=1)
+    plt.scatter(target_y, target_x, label='drone_target', s=1)
+    plt.scatter(D_y, D_x, label='drone_coord', s=1)
+
     plt.title("drone_target_record")
     plt.legend()
     plt.grid()
@@ -83,6 +89,27 @@ def plot_results(dir):
             color='#00FF00',
             popup=f"HUMAN_real:{i} lat:{lat:.6f} lon:{lon:.6f}"
         ).add_to(m)
+
+    for i, latlon in enumerate(zip(D_gps_lat, D_gps_lon)):
+        lat, lon = latlon
+        folium.CircleMarker(
+            location=(lat, lon),
+            radius=0.1,
+            fill=True,  # Set fill to True
+            fill_color='#FF0000',
+            color='#FF0000',
+            popup=f"Drone GPS :{i} lat:{lat:.6f} lon:{lon:.6f}"
+        ).add_to(m)
+
+    folium.Circle(
+        location=no_fly_zone_cen,
+        radius=10,
+        fill=True,  # Set fill to True
+        fill_color='#0000FF',
+        color='#0000FF',
+        popup=f"No Fly Zone: radius 10 m"
+              f"lat:{no_fly_zone_cen[0]:.6f} lon:{no_fly_zone_cen[1]:.6f}"
+    ).add_to(m)
 
     m.save(str(dir / "map.html"))
     # webbrowser.open(dir / "map.html")

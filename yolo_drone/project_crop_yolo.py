@@ -35,9 +35,9 @@ from gpsmap.airsim_gpsflask import GpsFlask
 @torch.no_grad()
 def run(weights='yolov5s.pt',  # model.pt path(s)
         source='data/images',  # file/dir/URL/glob, 0 for webcam
-        imgsz=640,  # inference size (pixels)
-        conf_thres=0.3,  # confidence threshold
-        iou_thres=0.3,  # NMS IOU threshold
+        imgsz=320,  # inference size (pixels)
+        conf_thres=0.25,  # confidence threshold
+        iou_thres=0.5,  # NMS IOU threshold
         max_det=1000,  # maximum detections per image
         device='',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         view_img=False,  # show results
@@ -118,7 +118,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
         # Inference & Apply NMS
         t1 = time_synchronized()
         pred_raw = model(img, augment=augment)[0]
-        pred = non_max_suppression(pred_raw, conf_thres * 2, iou_thres * 2, classes, agnostic_nms, max_det=max_det)
+        pred = non_max_suppression(pred_raw, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
         t2 = time_synchronized()
         client.human_detect = False
         # Process detections
@@ -143,6 +143,8 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
                 # Write results for crop
+                min_len = im0.shape[1]**2+im0.shape[0]**2
+                temp_h_detec = False
                 for *xyxy, conf, cls in reversed(det):
                     if save_img or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
@@ -150,13 +152,18 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                         center, foot = plot_one_box2(xyxy, im0, label=label, color=colors(c, True),
                                                      line_thickness=1)
                         if c == 0:
-                            client.img_human_center = center
-                            client.img_human_foot = foot
-                            client.read_sim_info()
-                            client.img_dx = client.img_human_foot[0] - client.w / 2
-                            client.img_dy = client.img_human_foot[1] - client.h / 2
-                            client.human_detect = True
-                            # total_detect = True
+                            foot_len = math.sqrt((foot[0]-im0.shape[1]/2)**2 + (foot[1]-im0.shape[0]/2)**2)
+                            if min_len > foot_len:
+                                min_len = foot_len
+                                client.img_human_center = center
+                                client.img_human_foot = foot
+                                temp_h_detec = True
+                if temp_h_detec:
+                    client.read_sim_info()
+                    client.img_dx = client.img_human_foot[0] - client.w / 2
+                    client.img_dy = client.img_human_foot[1] - client.h / 2
+                    client.human_detect = True
+                                # total_detect = True
                 # Print time (inference + NMS)
             print(f'{s}Done. ({t2 - t1:.3f}s), {client.img_human_foot}')
 
@@ -257,14 +264,16 @@ if __name__ == "__main__":
                                 hovering_altitude=-30,  # meter
                                 velocity_gain=0.5,  #
                                 track_target=True,  #
-                                plot_threading=False  # plot the trajectory
+                                plot_traj=True  # plot the trajectory
                                 )
-    client.armDisarm(True)
 
     # Go to initial location
     target = client.simGetObjectPose('NPC_3')
     # Move to starting position
-    client.mission_start((target.position.x_val, target.position.y_val), coordinate='XYZ')
+    # client.mission_start((target.position.x_val, target.position.y_val),(target.position.x_val+20, target.position.y_val),
+    #                      coordinate='XYZ')
+    client.mission_start((37.587363326113646, 127.03149227523414),(37.58754298917047, 127.03149227523414), coordinate='GPS')
+
     # Gps posting flask start
     GpsFlask(client)
     # Run the yolo model, including tracing the human if track_target = True
