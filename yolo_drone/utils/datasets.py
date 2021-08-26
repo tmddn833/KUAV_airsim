@@ -347,7 +347,6 @@ class LoadStreams:  # multiple IP or RTSP cameras
                 # _, self.imgs[index] = cap.read()
                 if n % read == 0:
                     rawImage = self.client.simGetImage("0", self.cameraTypeMap[self.cameraType])
-                    self.client.load_sim_info()
                     try:
                         im = cv2.imdecode(airsim.string_to_uint8_array(rawImage), cv2.IMREAD_UNCHANGED)
                         self.imgs[i] = im[:, :, :3]

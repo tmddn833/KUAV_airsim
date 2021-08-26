@@ -27,7 +27,7 @@ class MyMultirotorClient(airsim.MultirotorClient):
         self.confirmConnection()
         self.enableApiControl(True)
         self.armDisarm(True)
-        self.takeoffAsync(timeout_sec=1).join()
+        self.takeoffAsync(timeout_sec=1)
         self.save_dir = None
 
         # Initial settings
@@ -157,7 +157,7 @@ class MyMultirotorClient(airsim.MultirotorClient):
 
     def drone_contol(self):
         self.adjust_target_gps()
-        self.adjust_gimbal_angle()
+        # self.adjust_gimbal_angle()
         if self.plot_traj:
             self.plot_trajectory()
 
@@ -265,7 +265,7 @@ class MyMultirotorClient(airsim.MultirotorClient):
                                                    airsim.to_quaternion(self.g_pitch, 0, self.g_yaw)))
         else:
             y_pgain = -0.00005
-            x_pgain = 0.00015
+            x_pgain = 0.00005
             self.g_pitch = max(min(self.g_pitch + self.img_dy * y_pgain, self.g_pitch_limit[1]), self.g_pitch_limit[0])
             self.g_yaw = max(min(self.g_yaw + self.img_dx * x_pgain, self.g_yaw_limit[1]), self.g_yaw_limit[0])
             # print(self.simGetCameraInfo("0"))

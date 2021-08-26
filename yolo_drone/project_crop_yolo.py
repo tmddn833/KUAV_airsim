@@ -55,7 +55,8 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
         hide_labels=False,  # hide labels
         hide_conf=False,  # hide confidences
         half=False,  # use FP16 half-precision inference
-        client=None  # if it is airsim, use client for source
+        client=None,  # if it is airsim, use client for source
+        client2=None  # sensor client
         ):
     save_img = not nosave and not source.endswith('.txt')  # save inference images
     webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
@@ -109,6 +110,10 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
     for path, img, im0s, vid_cap in dataset:
         # print(img.shape) # (1, 3, 480, 640)
         # print(im0s[0].shape) # (480, 640, 3)
+
+        # client.load_sim_info()
+        client.multirotor_state_temp = client2.getMultirotorState()
+
         img = torch.from_numpy(img).to(device)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
@@ -119,6 +124,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
         t1 = time_synchronized()
         pred_raw = model(img, augment=augment)[0]
         pred = non_max_suppression(pred_raw, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+        time.sleep(0.2)
         t2 = time_synchronized()
         client.human_detect = False
         # Process detections
@@ -143,7 +149,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
                 # Write results for crop
-                min_len = im0.shape[1]**2+im0.shape[0]**2
+                min_len = im0.shape[1] ** 2 + im0.shape[0] ** 2
                 temp_h_detec = False
                 for *xyxy, conf, cls in reversed(det):
                     if save_img or view_img:  # Add bbox to image
@@ -152,7 +158,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                         center, foot = plot_one_box2(xyxy, im0, label=label, color=colors(c, True),
                                                      line_thickness=1)
                         if c == 0:
-                            foot_len = math.sqrt((foot[0]-im0.shape[1]/2)**2 + (foot[1]-im0.shape[0]/2)**2)
+                            foot_len = math.sqrt((foot[0] - im0.shape[1] / 2) ** 2 + (foot[1] - im0.shape[0] / 2) ** 2)
                             if min_len > foot_len:
                                 min_len = foot_len
                                 client.img_human_center = center
@@ -163,7 +169,7 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
                     client.img_dx = client.img_human_foot[0] - client.w / 2
                     client.img_dy = client.img_human_foot[1] - client.h / 2
                     client.human_detect = True
-                                # total_detect = True
+                    # total_detect = True
                 # Print time (inference + NMS)
             print(f'{s}Done. ({t2 - t1:.3f}s), {client.img_human_foot}')
 
@@ -228,8 +234,10 @@ def run(weights='yolov5s.pt',  # model.pt path(s)
 def parse_opt():
     parser = argparse.ArgumentParser()
     # parser.add_argument('--weights', nargs='+', type=str, default='yolov5s.pt', help='model.pt path(s)')
-    # parser.add_argument('--weights', nargs='+', type=str, default="C:\seungwoo\KUAV\yolov5\\runs\\train\exp25\weights\\best.pt", help='model.pt path(s)')
-    parser.add_argument('--weights', nargs='+', type=str, default="C:\seungwoo\KUAV\yolov5\\visdrone_trained_model\weights\\best.pt", help='model.pt path(s)')
+    # parser.add_argument('--weights', nargs='+', type=str, default="C:\seungwoo\KUAV\KUAV_airsim\yolo_drone\\visdrone_task13_traind_model\weights\\best.pt", help='model.pt path(s)')
+    parser.add_argument('--weights', nargs='+', type=str,
+                        default="C:\seungwoo\KUAV\yolov5\\visdrone_trained_model\weights\\best.pt",
+                        help='model.pt path(s)')
     parser.add_argument('--source', type=str, default='data/images', help='file/dir/URL/glob, 0 for webcam')
     parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.25, help='confidence threshold')
@@ -266,19 +274,21 @@ if __name__ == "__main__":
                                 track_target=True,  #
                                 plot_traj=True  # plot the trajectory
                                 )
+    sensor_client = airsim.MultirotorClient()
 
     # Go to initial location
     target = client.simGetObjectPose('NPC_3')
     # Move to starting position
     # client.mission_start((target.position.x_val, target.position.y_val),(target.position.x_val+20, target.position.y_val),
     #                      coordinate='XYZ')
-    client.mission_start((37.587363326113646, 127.03149227523414),(37.58754298917047, 127.03149227523414), coordinate='GPS')
+    client.mission_start((37.587363326113646, 127.03149227523414), (37.58754298917047, 127.03149227523414),
+                         coordinate='GPS')
 
     # Gps posting flask start
     GpsFlask(client)
     # Run the yolo model, including tracing the human if track_target = True
     # With 'q' keyboard input, the 'run' will finish.
-    run(**vars(opt), client=client)
+    run(**vars(opt), client=client, client2=sensor_client)
     # If the mission finish, Open the data directory and plot the results.
     os.startfile(str(client.save_dir))
     client.dataplot()
