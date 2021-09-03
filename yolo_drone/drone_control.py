@@ -1,5 +1,6 @@
 import airsim
 import math
+from math import sqrt, acos, atan2, sin, cos
 import time
 import threading
 import os
@@ -10,6 +11,8 @@ import matplotlib.pyplot as plt
 from util import get_location_metres, get_metres_location, euler_from_quaternion, quaternion_rotation_matrix, \
     get_intersections
 from plot_results import plot_results
+from shapely.geometry import LineString
+from shapely.geometry import Point
 
 NO_FLY_RADIUS = 10  # 10m
 
@@ -72,6 +75,8 @@ class MyMultirotorClient(airsim.MultirotorClient):
         self.start = self.multirotor_state.kinematics_estimated.position
         self.no_fly_center = [None, None]
         self.no_fly_center_gps = [None, None]
+        self.AVOID_Tangent_flag = False
+        self.FOLLOW_flag = True
 
         # recordings
         self.estimated_personcoord_record = []
@@ -171,7 +176,6 @@ class MyMultirotorClient(airsim.MultirotorClient):
 
     def adjust_target_gps(self):
         # trace by image detected point
-
         if self.human_detect is False:
             return
         # To get the absolute coordinate of human, Find the rotation matrix
@@ -194,7 +198,6 @@ class MyMultirotorClient(airsim.MultirotorClient):
         # Make front -> z Left -> x below -> y on the direction the camera is looking
         # this is transformation to camera coordinate
         R_tran = np.array([[0, 0, 1, 0], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
-
         OR_C = np.hstack((OR_G, T))
         OR_C = np.vstack((OR_C, np.array([[0, 0, 0, 1]])))
         OR_C = np.matmul(OR_C, R_tran)
@@ -212,11 +215,47 @@ class MyMultirotorClient(airsim.MultirotorClient):
         target_y = D_y + (H_y - D_y) * ((error_dist) / real_dist)
         target_x = D_x + (H_x - D_x) * ((error_dist) / real_dist)
 
-        if NO_FLY_RADIUS+3 >= math.sqrt(
+        # AVOID1
+        if (self.AVOID_Tangent_flag == False) and (NO_FLY_RADIUS + 3 >= math.sqrt(
+                (H_x - self.no_fly_center[0]) ** 2 + (H_y - self.no_fly_center[1]) ** 2)):  # 사람 금지구역 in
+            self.AVOID_Tangent_flag = True
+
+        # 드론 & tangent_point distance <= 2 : 드론이 탄젠트 포인트에 들어옴
+        elif (self.AVOID_Tangent_flag == True) and math.sqrt(
+                    (self.T1[0] - self.tangent_tracking_point[0]) ** 2 + (self.T1[1] - self.tangent_tracking_point[1]) ** 2) <= 2:
+            self.AVOID_Tangent_flag = False
+
+        if self.AVOID_Tangent_flag == True:
+            # circle_tangent_point
+            b = sqrt((H_x - D_x) ** 2 + (H_y - D_y) ** 2)  # hypot() also works here
+            th = acos((NO_FLY_RADIUS + 3) / b)  # angle theta
+            d = atan2(H_y - D_y, H_x - D_x)  # direction angle of point P from C
+            d1 = d + th  # direction angle of point T1 from C
+            d2 = d - th  # direction angle of point T2 from C
+
+            T1x = D_x + (NO_FLY_RADIUS + 3) * cos(d1)
+            T1y = D_y + (NO_FLY_RADIUS + 3) * sin(d1)
+            T2x = D_x + (NO_FLY_RADIUS + 3) * cos(d2)
+            T2y = D_y + (NO_FLY_RADIUS + 3) * sin(d2)
+            self.T1 = (T1x, T1y); self.T2 = (T2x, T2y)
+            # line_circle_intersection
+            H_p = Point(H_x, H_y)
+            c = H_p.buffer(self.following_distance).boundary
+            l = LineString([(D_x, D_y), self.T1])
+            i = c.intersection(l)
+            if len(i) == 2:
+                length_1 = math.sqrt((D_x - i.geoms[0].coords[0][0]) ** 2 + (D_y - i.geoms[0].coords[0][1]) ** 2)
+                length_2 = math.sqrt((D_x - i.geoms[1].coords[0][0]) ** 2 + (D_y - i.geoms[1].coords[0][1]) ** 2)
+                tangent_tracking_point = i.geoms[0].coords[0] if length_1 <= length_2 else i.geoms[1].coords[0]
+            else:
+                tangent_tracking_point = i.geoms[0].coords[0]  # tuple has x , y
+            target_x, target_y = tangent_tracking_point
+
+        elif NO_FLY_RADIUS + 3 >= math.sqrt(
                 (target_x - self.no_fly_center[0]) ** 2 + (target_y - self.no_fly_center[1]) ** 2):
-            self.mission_mode = "AVOID"
             target_x, target_y = get_intersections([H_x, H_y], self.following_distance, self.no_fly_center,
-                                                   NO_FLY_RADIUS+3)[0]  # no fly radius
+                                                   NO_FLY_RADIUS + 3)[0]  # no fly radius # H : 현재 사람 위치
+
         dx, dy = target_x - D_x, target_y - D_y
         target_yaw = math.atan2((H_y - D_y),(H_x - D_x))
         if self.track_target:
