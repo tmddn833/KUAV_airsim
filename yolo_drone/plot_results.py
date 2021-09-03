@@ -12,12 +12,15 @@ import webbrowser
 def plot_results(dir, no_fly_zone_cen):
     df = pd.read_csv(dir / "simulation_data.csv")
     plt.figure(1)
+    tangent_x = df['tangent_tracking_point_record'].apply(lambda x: eval(x)[0])
+    tangent_y = df['tangent_tracking_point_record'].apply(lambda x: eval(x)[1])
     est_p_x = df['estimated_personcoord_record'].apply(lambda x: eval(x)[0])
     est_p_y = df['estimated_personcoord_record'].apply(lambda x: eval(x)[1])
     act_p_x = df['actual_personcoord_record'].apply(lambda x: eval(x)[0])
     act_p_y = df['actual_personcoord_record'].apply(lambda x: eval(x)[1])
     plt.scatter(est_p_y, est_p_x, label='estimated_coord', s=1)
     plt.scatter(act_p_y, act_p_x, label='actual_coord', s=1)
+    plt.scatter(tangent_y, tangent_x, label='tangent_coord', s=1)
     plt.axes().set_aspect(1)
     plt.legend()
     plt.grid()
@@ -107,9 +110,28 @@ def plot_results(dir, no_fly_zone_cen):
         fill=True,  # Set fill to True
         fill_color='#0000FF',
         color='#0000FF',
-        popup=f"No Fly Zone: radius 10 m"
+        popup=f"No Fly Zone: radius 10m"
               f"lat:{no_fly_zone_cen[0]:.6f} lon:{no_fly_zone_cen[1]:.6f}"
     ).add_to(m)
+
+    tangent_lon = df['tangent_lat_lon_record'].apply(lambda x: eval(x)[0])
+    tangent_lat = df['tangent_lat_lon_record'].apply(lambda x: eval(x)[1])
+
+    for i, latlon in enumerate(zip(tangent_lat, tangent_lon)):
+        lat, lon = latlon
+        folium.CircleMarker(
+            location=(lat, lon),
+            radius=0.1,
+            fill=True,  # Set fill to True
+            fill_color='#555500',
+            color='#555500',
+            popup=f"Tangent GPS :{i} lat:{lat:.6f} lon:{lon:.6f}"
+        ).add_to(m)
+
+
+
+
+
 
     m.save(str(dir / "map.html"))
     # webbrowser.open(dir / "map.html")

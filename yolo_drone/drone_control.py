@@ -78,6 +78,8 @@ class MyMultirotorClient(airsim.MultirotorClient):
         self.AVOID_Tangent_flag = False
         self.FOLLOW_flag = True
 
+        self.tangent_tracking_point = [0,0]
+
         # recordings
         self.estimated_personcoord_record = []
         self.actual_personcoord_record = []
@@ -88,6 +90,8 @@ class MyMultirotorClient(airsim.MultirotorClient):
         self.drone_lon_lat_record = []
         self.human_lon_lat_record = []
         self.human_lon_lat_real_record = []
+        self.tangent_tracking_point_record = []
+        self.tangent_lat_lon_record = []
 
     def mission_start(self, initial_point, no_fly_center, coordinate='XYZ', ):
         """
@@ -220,36 +224,43 @@ class MyMultirotorClient(airsim.MultirotorClient):
                 (H_x - self.no_fly_center[0]) ** 2 + (H_y - self.no_fly_center[1]) ** 2)):  # 사람 금지구역 in
             self.AVOID_Tangent_flag = True
 
-        # 드론 & tangent_point distance <= 2 : 드론이 탄젠트 포인트에 들어옴
-        elif (self.AVOID_Tangent_flag == True) and math.sqrt(
-                    (self.T1[0] - self.tangent_tracking_point[0]) ** 2 + (self.T1[1] - self.tangent_tracking_point[1]) ** 2) <= 2:
+        # 드론 & tangent_point distance <= 2 : 드론이 금지구역에 근접
+        elif (self.AVOID_Tangent_flag == True) and (NO_FLY_RADIUS + 4> sqrt((self.no_fly_center[0] - D_x) ** 2 +
+                                                                            (self.no_fly_center[1] - D_y) ** 2)):
             self.AVOID_Tangent_flag = False
 
         if self.AVOID_Tangent_flag == True:
             # circle_tangent_point
-            b = sqrt((H_x - D_x) ** 2 + (H_y - D_y) ** 2)  # hypot() also works here
+            b = sqrt((self.no_fly_center[0] - D_x) ** 2 + (self.no_fly_center[1] - D_y) ** 2)  # hypot() also works here
+            # print((NO_FLY_RADIUS + 3) / b)
             th = acos((NO_FLY_RADIUS + 3) / b)  # angle theta
-            d = atan2(H_y - D_y, H_x - D_x)  # direction angle of point P from C
+            d = atan2(self.no_fly_center[0] - D_y, self.no_fly_center[0] - D_x)  # direction angle of point P from C
             d1 = d + th  # direction angle of point T1 from C
             d2 = d - th  # direction angle of point T2 from C
 
-            T1x = D_x + (NO_FLY_RADIUS + 3) * cos(d1)
-            T1y = D_y + (NO_FLY_RADIUS + 3) * sin(d1)
-            T2x = D_x + (NO_FLY_RADIUS + 3) * cos(d2)
-            T2y = D_y + (NO_FLY_RADIUS + 3) * sin(d2)
+            T1x = self.no_fly_center[0] + (NO_FLY_RADIUS + 3) * cos(d1)
+            T1y = self.no_fly_center[1] + (NO_FLY_RADIUS + 3) * sin(d1)
+            T2x = self.no_fly_center[0] + (NO_FLY_RADIUS + 3) * cos(d2)
+            T2y = self.no_fly_center[1] + (NO_FLY_RADIUS + 3) * sin(d2)
             self.T1 = (T1x, T1y); self.T2 = (T2x, T2y)
             # line_circle_intersection
+
             H_p = Point(H_x, H_y)
             c = H_p.buffer(self.following_distance).boundary
-            l = LineString([(D_x, D_y), self.T1])
+            l = LineString([(D_x, D_y), (self.T1)])
             i = c.intersection(l)
-            if len(i) == 2:
-                length_1 = math.sqrt((D_x - i.geoms[0].coords[0][0]) ** 2 + (D_y - i.geoms[0].coords[0][1]) ** 2)
-                length_2 = math.sqrt((D_x - i.geoms[1].coords[0][0]) ** 2 + (D_y - i.geoms[1].coords[0][1]) ** 2)
-                tangent_tracking_point = i.geoms[0].coords[0] if length_1 <= length_2 else i.geoms[1].coords[0]
-            else:
-                tangent_tracking_point = i.geoms[0].coords[0]  # tuple has x , y
-            target_x, target_y = tangent_tracking_point
+            # if len(i.geoms) == 2:
+            #             #     length_1 = math.sqrt((D_x - i.geoms[0].coords[0][0]) ** 2 + (D_y - i.geoms[0].coords[0][1]) ** 2)
+            #             #     length_2 = math.sqrt((D_x - i.geoms[1].coords[0][0]) ** 2 + (D_y - i.geoms[1].coords[0][1]) ** 2)
+            #             #     tangent_tracking_point = i.geoms[0].coords[0] if length_1 <= length_2 else i.geoms[1].coords[0]
+            #             # else:
+            #             #     tangent_tracking_point = i.geoms[0].coords[0]  # tuple has x , y
+            # print(i)
+            if isinstance(i,Point):
+                tangent_tracking_point = self.T1
+                self.simPlotPoints([airsim.Vector3r(tangent_tracking_point[0], tangent_tracking_point[1], self.hovering_altitude)], duration=4,
+                                   color_rgba=[1.0, 0, 1.0, 0.5])
+                target_x, target_y = [i.x, i.y]
 
         elif NO_FLY_RADIUS + 3 >= math.sqrt(
                 (target_x - self.no_fly_center[0]) ** 2 + (target_y - self.no_fly_center[1]) ** 2):
@@ -260,6 +271,7 @@ class MyMultirotorClient(airsim.MultirotorClient):
         target_yaw = math.atan2((H_y - D_y),(H_x - D_x))
         if self.track_target:
             self.simPrintLogMessage("Mission Mode: ", self.mission_mode)
+            self.simPrintLogMessage("Avoid Mode: ", str(self.AVOID_Tangent_flag))
             self.moveByVelocityZAsync(self.velocity_gain * dx, self.velocity_gain * dy, self.hovering_altitude,
                                       duration=self.velocity_gain,
                                       yaw_mode=airsim.YawMode(False, target_yaw * 180 / math.pi))
@@ -284,6 +296,14 @@ class MyMultirotorClient(airsim.MultirotorClient):
         human_gps = get_location_metres([self.start_gps.latitude, self.start_gps.longitude], [x_real, y_real])
         self.human_lon_lat_real_record.append([human_gps[1], human_gps[0]])
         self.drone_target_record.append([target_x, target_y])
+        try:
+            tangent_tracking_point
+            self.tangent_tracking_point_record.append(tangent_tracking_point)
+            tangent_lat_lon = get_location_metres([self.start_gps.latitude, self.start_gps.longitude], tangent_tracking_point)
+            self.tangent_lat_lon_record.append(tangent_lat_lon)
+        except:
+            self.tangent_tracking_point_record.append((0,0))
+            self.tangent_lat_lon_record.append((0,0))
 
     def adjust_gimbal_angle(self):
         '''
@@ -344,5 +364,7 @@ class MyMultirotorClient(airsim.MultirotorClient):
         df['drone_lon_lat_record'] = self.drone_lon_lat_record
         df['human_lon_lat_record'] = self.human_lon_lat_record
         df['human_lon_lat_real_record'] = self.human_lon_lat_real_record
+        df['tangent_tracking_point_record'] = self.tangent_tracking_point_record
+        df['tangent_lat_lon_record'] = self.tangent_lat_lon_record
         df.to_csv(self.save_dir / "simulation_data.csv")
         plot_results(self.save_dir, self.no_fly_center_gps)

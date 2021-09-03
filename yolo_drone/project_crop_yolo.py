@@ -236,7 +236,7 @@ def parse_opt():
     # parser.add_argument('--weights', nargs='+', type=str, default='yolov5s.pt', help='model.pt path(s)')
     # parser.add_argument('--weights', nargs='+', type=str, default="C:\seungwoo\KUAV\KUAV_airsim\yolo_drone\\visdrone_task13_traind_model\weights\\best.pt", help='model.pt path(s)')
     parser.add_argument('--weights', nargs='+', type=str,
-                        default="C:\seungwoo\KUAV\yolov5\\visdrone_trained_model\weights\\best.pt",
+                        default=".\\visdrone_trained_model\weights\\best.pt",
                         help='model.pt path(s)')
     parser.add_argument('--source', type=str, default='data/images', help='file/dir/URL/glob, 0 for webcam')
     parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=640, help='inference size (pixels)')
